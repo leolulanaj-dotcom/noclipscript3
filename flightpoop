@@ -1,8 +1,8 @@
 -- SERVER-SYNCED STEALTH FLIGHTNOCLIP
+-- ADVANCED NOCLIP WITH WORKING MOBILE CONTROLS
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 
 local Player = Players.LocalPlayer
@@ -11,8 +11,8 @@ local Camera = workspace.CurrentCamera
 -- Configuration
 local NoclipKey = Enum.KeyCode.N
 local Speed = 25
-local MaxSpeed = 150
-local SpeedIncrement = 10
+local MaxSpeed = 100
+local SpeedIncrement = 5
 local isNoclipping = false
 local isFlying = false
 local MoveDirection = Vector3.new()
@@ -21,104 +21,181 @@ local CurrentSpeed = Speed
 -- Detect if on mobile
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled and not UserInputService.KeyboardEnabled
 
--- SERVER-SIDE STEALTH: Makes movement look natural to other players
-local function SetupServerStealth()
-    -- Create remote events for server communication (makes movement look legit)
-    local noclipRemote = Instance.new("RemoteEvent")
-    noclipRemote.Name = "NoclipStatusRemote"
-    noclipRemote.Parent = ReplicatedStorage
-
-    local movementRemote = Instance.new("RemoteEvent")
-    movementRemote.Name = "MovementSyncRemote"
-    movementRemote.Parent = ReplicatedStorage
-
-    -- Tell server we're "animating" to justify movement
-    noclipRemote:FireServer("animating", true)
-end
-
--- CLIENT-SIDE STEALTH: Makes noclip undetectable
-local function StealthNoclip()
+-- Noclip function
+local function ApplyNoclip()
     if not Player.Character then return end
-    
-    local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid:ChangeState(11) -- Freeze humanoid state (makes it look natural)
-    end
     
     for _, part in pairs(Player.Character:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
-            part.Massless = true
-            part.Transparency = 0.2
-            part.Velocity = Vector3.new(0, 0, 0)
-            part.RotVelocity = Vector3.new(0, 0, 0)
         end
     end
 end
 
--- Main GUI (Simple version to avoid detection)
+-- Flight movement
+local function Fly()
+    if not Player.Character then return end
+    local root = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    if MoveDirection.Magnitude > 0 then
+        local camCF = Camera.CFrame
+        local moveVector = (camCF.LookVector * MoveDirection.Z + camCF.RightVector * MoveDirection.X + Vector3.new(0, MoveDirection.Y, 0)) * (CurrentSpeed * 0.03)
+        root.CFrame = root.CFrame + moveVector
+    end
+end
+
+-- GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GameHelperUI"
+ScreenGui.Name = "NoclipGui"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(0, 200, 0, 30)
+StatusLabel.Size = UDim2.new(0, 200, 0, 40)
 StatusLabel.Position = UDim2.new(0, 10, 0, 10)
-StatusLabel.BackgroundTransparency = 1
+StatusLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+StatusLabel.BackgroundTransparency = 0.5
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-StatusLabel.Text = "Helper: Ready"
-StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "NOCLIP: OFF\nSPEED: " .. Speed
+StatusLabel.Font = Enum.Font.SourceSansBold
 StatusLabel.TextSize = 14
-StatusLabel.Visible = false -- Hidden by default for stealth
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
 StatusLabel.Parent = ScreenGui
 
--- Mobile Controls (Minimalist for stealth)
+-- Mobile Controls
 local MobileGui = Instance.new("ScreenGui")
-MobileGui.Name = "MobileGameControls"
+MobileGui.Name = "MobileControls"
 MobileGui.Parent = CoreGui
 MobileGui.ResetOnSpawn = false
 MobileGui.Enabled = IS_MOBILE
 
 local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0, 100, 0, 40)
-ToggleButton.Position = UDim2.new(0.5, -50, 0.9, -40)
+ToggleButton.Size = UDim2.new(0, 120, 0, 50)
+ToggleButton.Position = UDim2.new(0.5, -60, 0.9, -50)
 ToggleButton.AnchorPoint = Vector2.new(0.5, 0)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ToggleButton.BackgroundTransparency = 0.7
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleButton.BackgroundTransparency = 0.3
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Text = "Helper OFF"
-ToggleButton.Font = Enum.Font.SourceSans
-ToggleButton.TextSize = 12
+ToggleButton.Text = "NOCLIP: OFF"
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 14
 ToggleButton.Visible = IS_MOBILE
 ToggleButton.Parent = MobileGui
 
+local JoystickFrame = Instance.new("Frame")
+JoystickFrame.Size = UDim2.new(0, 120, 0, 120)
+JoystickFrame.Position = UDim2.new(0, 30, 0.7, -60)
+JoystickFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+JoystickFrame.BackgroundTransparency = 0.7
+JoystickFrame.BorderSizePixel = 0
+JoystickFrame.Visible = IS_MOBILE
+JoystickFrame.Parent = MobileGui
+
+local JoystickInner = Instance.new("Frame")
+JoystickInner.Size = UDim2.new(0, 40, 0, 40)
+JoystickInner.Position = UDim2.new(0.5, -20, 0.5, -20)
+JoystickInner.AnchorPoint = Vector2.new(0.5, 0.5)
+JoystickInner.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+JoystickInner.BackgroundTransparency = 0.5
+JoystickInner.BorderSizePixel = 0
+JoystickInner.Parent = JoystickFrame
+
+local UpButton = Instance.new("TextButton")
+UpButton.Size = UDim2.new(0, 60, 0, 60)
+UpButton.Position = UDim2.new(0.8, -30, 0.7, -90)
+UpButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+UpButton.BackgroundTransparency = 0.7
+UpButton.Text = "↑"
+UpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+UpButton.Font = Enum.Font.SourceSansBold
+UpButton.TextSize = 20
+UpButton.Visible = IS_MOBILE
+UpButton.Parent = MobileGui
+
+local DownButton = Instance.new("TextButton")
+DownButton.Size = UDim2.new(0, 60, 0, 60)
+DownButton.Position = UDim2.new(0.8, -30, 0.7, 0)
+DownButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DownButton.BackgroundTransparency = 0.7
+DownButton.Text = "↓"
+DownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+DownButton.Font = Enum.Font.SourceSansBold
+DownButton.TextSize = 20
+DownButton.Visible = IS_MOBILE
+DownButton.Parent = MobileGui
+
 -- Update GUI
 local function UpdateGUI()
+    StatusLabel.Text = "NOCLIP: " .. (isNoclipping and "ON" or "OFF") .. "\nSPEED: " .. CurrentSpeed
     if IS_MOBILE then
-        ToggleButton.Text = "Helper " .. (isNoclipping and "ON" or "OFF")
-        ToggleButton.BackgroundColor3 = isNoclipping and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(100, 0, 0)
+        ToggleButton.Text = "NOCLIP: " .. (isNoclipping and "ON" : "OFF")
+        ToggleButton.BackgroundColor3 = isNoclipping and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
     end
-    StatusLabel.Text = "Helper: " .. (isNoclipping and "ACTIVE" or "Ready")
 end
 
 -- Mobile Controls
-if IS_MOBILE then
-    ToggleButton.MouseButton1Click:Connect(function()
-        isNoclipping = not isNoclipping
-        UpdateGUI()
-        SetupServerStealth()
-    end)
-end
+local joystickActive = false
+local joystickStartPos = Vector2.new()
+
+JoystickFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        joystickActive = true
+        joystickStartPos = Vector2.new(input.Position.X, input.Position.Y)
+    end
+end)
+
+JoystickFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and joystickActive then
+        local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+        local delta = (currentPos - joystickStartPos) / 50
+        delta = Vector2.new(math.clamp(delta.X, -1, 1), math.clamp(delta.Y, -1, 1))
+        MoveDirection = Vector3.new(delta.X, 0, delta.Y)
+        JoystickInner.Position = UDim2.new(0.5, delta.X * 30, 0.5, delta.Y * 30)
+        isFlying = true
+    end
+end)
+
+JoystickFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        joystickActive = false
+        MoveDirection = Vector3.new(0, 0, 0)
+        JoystickInner.Position = UDim2.new(0.5, -20, 0.5, -20)
+        isFlying = false
+    end
+end)
+
+UpButton.MouseButton1Down:Connect(function()
+    MoveDirection = Vector3.new(MoveDirection.X, 1, MoveDirection.Z)
+    isFlying = true
+end)
+
+UpButton.MouseButton1Up:Connect(function()
+    MoveDirection = Vector3.new(MoveDirection.X, 0, MoveDirection.Z)
+end)
+
+DownButton.MouseButton1Down:Connect(function()
+    MoveDirection = Vector3.new(MoveDirection.X, -1, MoveDirection.Z)
+    isFlying = true
+end)
+
+DownButton.MouseButton1Up:Connect(function()
+    MoveDirection = Vector3.new(MoveDirection.X, 0, MoveDirection.Z)
+end)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    isNoclipping = not isNoclipping
+    UpdateGUI()
+end)
 
 -- Keyboard Controls
 UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
+    if processed or IS_MOBILE then return end
     
     if input.KeyCode == NoclipKey then
         isNoclipping = not isNoclipping
         UpdateGUI()
-        SetupServerStealth()
         return
     end
     
@@ -131,11 +208,14 @@ UserInputService.InputBegan:Connect(function(input, processed)
     elseif key == Enum.KeyCode.D then MoveDirection = Vector3.new(1, MoveDirection.Y, MoveDirection.Z) isFlying = true
     elseif key == Enum.KeyCode.Space then MoveDirection = Vector3.new(MoveDirection.X, 1, MoveDirection.Z) isFlying = true
     elseif key == Enum.KeyCode.LeftControl then MoveDirection = Vector3.new(MoveDirection.X, -1, MoveDirection.Z) isFlying = true
+    elseif key == Enum.KeyCode.Equals then CurrentSpeed = math.min(CurrentSpeed + SpeedIncrement, MaxSpeed) UpdateGUI()
+    elseif key == Enum.KeyCode.Minus then CurrentSpeed = math.max(CurrentSpeed - SpeedIncrement, 5) UpdateGUI()
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, processed)
-    if processed or not isNoclipping then return end
+    if processed or not isNoclipping or IS_MOBILE then return end
+    
     local key = input.KeyCode
     if key == Enum.KeyCode.W or key == Enum.KeyCode.S then MoveDirection = Vector3.new(MoveDirection.X, MoveDirection.Y, 0)
     elseif key == Enum.KeyCode.A or key == Enum.KeyCode.D then MoveDirection = Vector3.new(0, MoveDirection.Y, MoveDirection.Z)
@@ -143,47 +223,18 @@ UserInputService.InputEnded:Connect(function(input, processed)
     end
 end)
 
--- STEALTH MOVEMENT: Makes movement look natural to server
-local function StealthFlight()
-    if not isNoclipping or not Player.Character then return end
-    local root = Player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
-    StealthNoclip()
-    
-    if MoveDirection.Magnitude > 0 then
-        -- Smooth camera-relative movement
-        local camCF = Camera.CFrame
-        local moveVector = (camCF.LookVector * MoveDirection.Z + camCF.RightVector * MoveDirection.X + Vector3.new(0, MoveDirection.Y, 0)) * (CurrentSpeed * 0.03)
-        
-        -- Apply movement in a way that looks natural to the server
-        root.CFrame = root.CFrame + moveVector
-        
-        -- Tell server we're "walking" to justify movement
-        local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:ChangeState(8) -- "Walking" state
-        end
-    end
-end
-
--- Main loop using RenderStepped for smoother client-side movement
-RunService.RenderStepped:Connect(function()
+-- Main loop
+RunService.Stepped:Connect(function()
     if isNoclipping then
-        StealthFlight()
-    end
-end)
-
--- Auto-disable during certain game states for extra stealth
-workspace.ChildAdded:Connect(function(child)
-    if child.Name == "SecurityZone" or child.Name == "AntiCheat" then
-        isNoclipping = false
-        UpdateGUI()
+        ApplyNoclip()
+        if isFlying then
+            Fly()
+        end
     end
 end)
 
 UpdateGUI()
-SetupServerStealth()
-
-print("Server-Synced Stealth Noclip Loaded!")
-print("Press N to toggle | Movement is server-friendly")
+print("ADVANCED NOCLIP LOADED!")
+print("Press N to toggle noclip")
+print("WASD + Space/Ctrl to fly")
+print("+/= to increase speed, - to decrease speed")
